@@ -24,18 +24,32 @@ class Binifier(object):
         self.args = self.cli.parse_arguments(args)
         self.grid = hexagon.HexagonGrid()
 
+    def get_layer(self):
+        if not self.args.postgres:
+            driver = ogr.GetDriverByName('ESRI Shapefile')
+            in_shapefile = driver.Open(self.args.infile, GA_ReadOnly)
+            if in_shapefile is None:
+                print('Could not open shapefile for read: %s' % self.args.infile)
+                sys.exit(1)
+            layer = in_shapefile.GetLayer()
+        else:
+            driver = ogr.GetDriverByName('PostgreSQL')
+            in_shapefile = driver.Open('PG:%s' % self.args.postgres, GA_ReadOnly)
+            if in_shapefile is None:
+                print('Could not open database. Connection string was: %s' % self.args.postgres)
+                sys.exit(1)
+            layer = in_shapefile.GetLayer(self.args.infile)
+
+        return layer 
+
     def main(self):
         """
         Handle input shapefile, create grid (output) shapefile, do
         summary calculations.
         """
-        driver = ogr.GetDriverByName('ESRI Shapefile')
-        in_shapefile = driver.Open(self.args.infile, GA_ReadOnly)
-        if in_shapefile is None:
-            print('Could not open shapefile for read: %s' % self.args.infile)
-            sys.exit(1)
 
-        in_layer = in_shapefile.GetLayer()
+        in_layer = self.get_layer()
+
         if not in_layer.GetGeomType() == ogr.wkbPoint \
                 and not self.args.ignore_type:
             print('Input shapefile does not contain a point layer.')

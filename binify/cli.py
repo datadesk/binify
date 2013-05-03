@@ -22,6 +22,9 @@ class CLI(object):
         self.parser.add_argument('-e', '--exclude-empty', \
                 dest='exclude_empty', action='store_true', \
                 help='Exclude shapes that end up binning zero points.')
+        self.parser.add_argument('-P', '--postgres', type=str,
+                help='PG connection string. If set, infile will be the table \
+                name to pull from instead of a shapefile.') 
         self.parser.add_argument('-o', '--overwrite', action='store_true', \
                 help='Overwrite output file.')
         self.parser.add_argument('--ignore-type', action='store_true', \
