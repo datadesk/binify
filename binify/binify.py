@@ -24,31 +24,28 @@ class Binifier(object):
         self.args = self.cli.parse_arguments(args)
         self.grid = hexagon.HexagonGrid()
 
-    def get_layer(self):
-        if not self.args.postgres:
-            driver = ogr.GetDriverByName('ESRI Shapefile')
-            in_shapefile = driver.Open(self.args.infile, GA_ReadOnly)
-            if in_shapefile is None:
-                print('Could not open shapefile for read: %s' % self.args.infile)
-                sys.exit(1)
-            layer = in_shapefile.GetLayer()
-        else:
-            driver = ogr.GetDriverByName('PostgreSQL')
-            in_shapefile = driver.Open('PG:%s' % self.args.postgres, GA_ReadOnly)
-            if in_shapefile is None:
-                print('Could not open database. Connection string was: %s' % self.args.postgres)
-                sys.exit(1)
-            layer = in_shapefile.GetLayer(self.args.infile)
-
-        return layer 
-
     def main(self):
         """
         Handle input shapefile, create grid (output) shapefile, do
         summary calculations.
         """
 
-        in_layer = self.get_layer()
+        # This is kinda gross, but you need a reference to your initial
+        # driver locally to do anything with the layers you get from it.
+        shape_driver = ogr.GetDriverByName('ESRI Shapefile')
+        if not self.args.postgres:
+            in_shapefile = shape_driver.Open(self.args.infile, GA_ReadOnly)
+            if in_shapefile is None:
+                print('Could not open shapefile for read: %s' % self.args.infile)
+                sys.exit(1)
+            in_layer = in_shapefile.GetLayer()
+        else:
+            driver = ogr.GetDriverByName('PostgreSQL')
+            in_shapefile = driver.Open('PG:%s' % self.args.postgres, GA_ReadOnly)
+            if in_shapefile is None:
+                print('Could not open database. Connection string was: %s' % self.args.postgres)
+                sys.exit(1)
+            in_layer = in_shapefile.GetLayer(self.args.infile)
 
         if not in_layer.GetGeomType() == ogr.wkbPoint \
                 and not self.args.ignore_type:
@@ -62,9 +59,9 @@ class Binifier(object):
                 print('Output file exists. To overwrite, use the --overwrite \
 option.')
                 sys.exit(3)
-            driver.DeleteDataSource(self.args.outfile)
+            shape_driver.DeleteDataSource(self.args.outfile)
 
-        out_shapefile = driver.CreateDataSource(self.args.outfile)
+        out_shapefile = shape_driver.CreateDataSource(self.args.outfile)
         out_layer = out_shapefile.CreateLayer('grid', geom_type=ogr.wkbPolygon)
         field_defn = ogr.FieldDefn('COUNT', ogr.OFTInteger)
         out_layer.CreateField(field_defn)
