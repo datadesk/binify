@@ -32,9 +32,9 @@ class Binifier(object):
 
         # This is kinda gross, but you need a reference to your initial
         # driver locally to do anything with the layers you get from it.
-        shape_driver = ogr.GetDriverByName('ESRI Shapefile')
         if not self.args.postgres:
-            in_shapefile = shape_driver.Open(self.args.infile, GA_ReadOnly)
+            driver = ogr.GetDriverByName('ESRI Shapefile')
+            in_shapefile = driver.Open(self.args.infile, GA_ReadOnly)
             if in_shapefile is None:
                 print('Could not open shapefile for read: %s' % self.args.infile)
                 sys.exit(1)
@@ -47,6 +47,7 @@ class Binifier(object):
                 sys.exit(1)
             in_layer = in_shapefile.GetLayer(self.args.infile)
 
+        print in_layer.GetGeomType()
         if not in_layer.GetGeomType() == ogr.wkbPoint \
                 and not self.args.ignore_type:
             print('Input shapefile does not contain a point layer.')
@@ -59,17 +60,21 @@ class Binifier(object):
                 print('Output file exists. To overwrite, use the --overwrite \
 option.')
                 sys.exit(3)
-            shape_driver.DeleteDataSource(self.args.outfile)
+            driver.DeleteDataSource(self.args.outfile)
 
-        out_shapefile = shape_driver.CreateDataSource(self.args.outfile)
-        out_layer = out_shapefile.CreateLayer('grid', geom_type=ogr.wkbPolygon)
+        if not self.args.postgres:
+            out_shapefile = driver.CreateDataSource(self.args.outfile)
+        else:
+            out_shapefile = in_shapefile
+            out_layer = out_shapefile.CreateLayer('binify_grid', geom_type=ogr.wkbPolygon)
         field_defn = ogr.FieldDefn('COUNT', ogr.OFTInteger)
         out_layer.CreateField(field_defn)
 
         # Write .prj file for output shapefile
-        spatial_ref = in_layer.GetSpatialRef()
-        with open(self.args.outfile[:-4] + '.prj', 'w') as proj_file:
-            proj_file.write(spatial_ref.ExportToWkt())
+        if not self.args.postgres:
+            spatial_ref = in_layer.GetSpatialRef()
+            with open(self.args.outfile[:-4] + '.prj', 'w') as proj_file:
+                proj_file.write(spatial_ref.ExportToWkt())
 
         extent = in_layer.GetExtent()
         self.grid.create_grid(out_layer, extent,
@@ -79,8 +84,8 @@ option.')
         if self.args.exclude_empty:
             self.remove_empty_shapes(out_layer)
 
-        in_shapefile.Destroy()
-        out_shapefile.Destroy()
+        #in_shapefile.Destroy()
+        #out_shapefile.Destroy()
 
     def count_intersections(self, target, source):
         """
